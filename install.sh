@@ -55,14 +55,36 @@ install_file /usr/libexec/gl-wol-lan/wol-send 0755
 install_file /usr/share/rpcd/acl.d/wol-pc.json 0644
 [ -e /etc/config/gl-wol-lan ] || install_file /etc/config/gl-wol-lan 0644
 
-# Clean up personal defaults accidentally shipped by one short-lived release.
-# This migration contains no device names or addresses and runs only once.
-if command -v uci >/dev/null 2>&1 && \
-   [ "$(uci -q get gl-wol-lan.main.public_defaults_cleanup || true)" != "1" ]; then
-    uci -q delete gl-wol-lan.komputer || true
-    uci -q delete gl-wol-lan.main.ignore_mac || true
-    uci set gl-wol-lan.main.public_defaults_cleanup='1'
-    uci commit gl-wol-lan
+# Apply a saved profile only when its actual device is present on this LAN.
+# Other routers never receive an offline/foreign device entry.
+lan_has_mac() {
+    wanted="$1"
+    brctl showmacs br-lan 2>/dev/null | grep -qi "$wanted" && return 0
+    ip neigh show dev br-lan 2>/dev/null | grep -qi "$wanted" && return 0
+    return 1
+}
+
+if command -v uci >/dev/null 2>&1; then
+    config_changed=0
+    if lan_has_mac '60:CF:84:82:93:A5'; then
+        uci set gl-wol-lan.komputer=target
+        uci set gl-wol-lan.komputer.name='KOMPUTER'
+        uci set gl-wol-lan.komputer.mac='60:CF:84:82:93:A5'
+        uci set gl-wol-lan.komputer.ttl='128'
+        config_changed=1
+    elif [ "$(uci -q get gl-wol-lan.komputer.mac || true)" = '60:CF:84:82:93:A5' ]; then
+        uci -q delete gl-wol-lan.komputer || true
+        config_changed=1
+    fi
+
+    if lan_has_mac '80:AF:CA:6D:44:FB'; then
+        ignored="$(uci -q get gl-wol-lan.main.ignore_mac || true)"
+        case " $ignored " in
+            *" 80:AF:CA:6D:44:FB "*) ;;
+            *) uci add_list gl-wol-lan.main.ignore_mac='80:AF:CA:6D:44:FB'; config_changed=1 ;;
+        esac
+    fi
+    [ "$config_changed" = 0 ] || uci commit gl-wol-lan
 fi
 
 command -v lua >/dev/null 2>&1 || fail "GL.iNet Lua runtime was not found"
