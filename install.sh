@@ -80,6 +80,12 @@ lua -e 'local m=dofile("/usr/lib/oui-httpd/rpc/wol_pc"); local r=m.list(); asser
     || fail "RPC self-test failed; backup: $BACKUP_DIR"
 
 /etc/init.d/nginx restart
+LAN_IP="$(uci -q get network.lan.ipaddr || true)"
+if [ -z "$LAN_IP" ] && command -v ip >/dev/null 2>&1; then
+    LAN_IP="$(ip -4 -o addr show dev br-lan 2>/dev/null | awk 'NR == 1 { print $4 }' | cut -d/ -f1)"
+fi
+LAN_IP="${LAN_IP%%/*}"
+[ -n "$LAN_IP" ] || LAN_IP="router.lan"
 log "Installed successfully"
-log "Open: http://192.168.8.1/#/wol-pc"
+log "Open: http://$LAN_IP/#/wol-pc"
 log "Backup: $BACKUP_DIR"

@@ -34,7 +34,8 @@ Or with curl:
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/sentiox/gl-WOL-LAN/master/install.sh)"
 ```
 
-Open `http://192.168.8.1/#/wol-pc`. Running the installer again updates the UI
+Open `http://<router-LAN-IP>/#/wol-pc`. The installer prints the correct address
+for the current router. Running the installer again updates the UI
 without removing saved PC names or ignored devices. A timestamped backup is
 created under `/root/gl-wol-lan-backup-*`.
 
