@@ -1,0 +1,4 @@
+vendor/luci-upstream/
+dist/
+*.ipk
+*.apk

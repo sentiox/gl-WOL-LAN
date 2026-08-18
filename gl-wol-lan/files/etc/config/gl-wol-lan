@@ -1,0 +1,3 @@
+config settings 'main'
+	option interface 'br-lan'
+	option broadcast '1'

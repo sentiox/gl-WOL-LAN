@@ -1,0 +1,17 @@
+{
+  "wol-pc": {
+    "description": "Allow access to the native Wol-PC page",
+    "read": {
+      "ubus": {
+        "wol_pc": [ "list" ]
+      },
+      "uci": [ "gl-wol-lan", "dhcp" ]
+    },
+    "write": {
+      "ubus": {
+        "wol_pc": [ "save", "remove", "wake" ]
+      },
+      "uci": [ "gl-wol-lan" ]
+    }
+  }
+}

@@ -1,0 +1,209 @@
+-- Native GL.iNet RPC bridge for Wol-PC.
+local M = {}
+
+local function quote(value)
+    return "'" .. tostring(value or ""):gsub("'", "'\\''") .. "'"
+end
+
+local function run(argv)
+    local parts = {}
+    for i, arg in ipairs(argv) do parts[i] = quote(arg) end
+    local pipe = io.popen(table.concat(parts, " ") .. " 2>&1; printf '\\n__RC__%s' $?")
+    if not pipe then return 127, "command unavailable" end
+    local output = pipe:read("*a") or ""
+    pipe:close()
+    local body, code = output:match("^(.*)\n__RC__(%d+)$")
+    return tonumber(code) or 1, body or output
+end
+
+local function valid_mac(value)
+    return type(value) == "string"
+        and value:match("^[%x][%x]:[%x][%x]:[%x][%x]:[%x][%x]:[%x][%x]:[%x][%x]$") ~= nil
+end
+
+local function clean_name(value)
+    value = tostring(value or ""):gsub("[%z\r\n]", ""):match("^%s*(.-)%s*$") or ""
+    if #value > 64 then value = value:sub(1, 64) end
+    return value
+end
+
+local function uci_get(path, fallback)
+    local rc, value = run({ "uci", "-q", "get", path })
+    if rc ~= 0 then return fallback or "" end
+    local cleaned = (value or ""):gsub("[\r\n]+$", "")
+    return cleaned
+end
+
+local function load_targets()
+    local _, raw = run({ "sh", "-c", "uci -q show gl-wol-lan | sed -n \"s/^gl-wol-lan\\.\\([^.=]*\\)=target$/\\1/p\"" })
+    local result = {}
+    for section in tostring(raw or ""):gmatch("[^\r\n]+") do
+        local mac = uci_get("gl-wol-lan." .. section .. ".mac")
+        if valid_mac(mac) then
+            result[#result + 1] = {
+                id = section,
+                name = uci_get("gl-wol-lan." .. section .. ".name", "PC"),
+                mac = mac:upper(),
+                ttl = tonumber(uci_get("gl-wol-lan." .. section .. ".ttl", "0")) or 0
+            }
+        end
+    end
+    return result
+end
+
+local function load_clients(interface)
+    local by_mac, result = {}, {}
+    local ignored_macs = {}
+    local traffic_clients = {}
+    local aggregate_speed = { speed_rx = 0, speed_tx = 0 }
+    local json_ok, json = pcall(require, "cjson.safe")
+    if json_ok and json then
+        local rc, raw = run({ "ubus", "call", "gl-clients", "list", "{}" })
+        if rc == 0 then
+            local decoded = json.decode(raw or "")
+            traffic_clients = decoded and decoded.clients or {}
+        end
+        local speed_rc, speed_raw = run({ "ubus", "call", "gl-clients", "get_speed", "{}" })
+        if speed_rc == 0 then
+            aggregate_speed = json.decode(speed_raw or "") or aggregate_speed
+        end
+    end
+    for mac in uci_get("gl-wol-lan.main.ignore_mac", ""):gmatch("%S+") do
+        ignored_macs[mac:upper()] = true
+    end
+
+    local leases = io.open("/tmp/dhcp.leases", "r")
+    if leases then
+        for line in leases:lines() do
+            local _, mac, ip, name = line:match("^(%S+)%s+(%S+)%s+(%S+)%s+(%S+)")
+            mac = tostring(mac or ""):upper()
+            if valid_mac(mac) then
+                local client = {
+                    name = name ~= "*" and name or "",
+                    mac = mac,
+                    ip = ip or "",
+                    online = false
+                }
+                by_mac[mac] = client
+                result[#result + 1] = client
+            end
+        end
+        leases:close()
+    end
+
+    local _, neighbors = run({ "ip", "neigh", "show", "dev", interface })
+    for line in tostring(neighbors or ""):gmatch("[^\r\n]+") do
+        local ip, mac = line:match("^(%S+).-[Ll][Ll][Aa][Dd][Dd][Rr]%s+(%S+)")
+        mac = tostring(mac or ""):upper()
+        if valid_mac(mac) then
+            local client = by_mac[mac]
+            if not client then
+                client = { name = "", mac = mac, ip = ip or "", online = false }
+                by_mac[mac] = client
+                result[#result + 1] = client
+            elseif client.ip == "" then
+                client.ip = ip or ""
+            end
+            client.online = not line:match("%sFAILED%s*$") and not line:match("%sINCOMPLETE%s*$")
+        end
+    end
+
+    local lan_ports = {}
+    local _, stp = run({ "brctl", "showstp", interface })
+    for line in tostring(stp or ""):gmatch("[^\r\n]+") do
+        local device, port = line:match("^([%w_.:-]+)%s+%((%d+)%)")
+        if device and device:match("^lan%d+$") and port then
+            lan_ports[tonumber(port)] = device
+        end
+    end
+
+    local wired_macs = {}
+    local _, fdb = run({ "brctl", "showmacs", interface })
+    for line in tostring(fdb or ""):gmatch("[^\r\n]+") do
+        local port, mac, is_local = line:match("^%s*(%d+)%s+(%S+)%s+(%S+)")
+        mac = tostring(mac or ""):upper()
+        if lan_ports[tonumber(port)] and is_local == "no" and valid_mac(mac) then
+            wired_macs[mac] = lan_ports[tonumber(port)]
+        end
+    end
+
+    local wired = {}
+    for _, client in ipairs(result) do
+        local port = wired_macs[client.mac]
+        if port and not ignored_macs[client.mac] then
+            client.port = port
+            local _, ping = run({ "ping", "-c", "1", "-W", "1", client.ip })
+            client.ttl = tonumber(tostring(ping or ""):match("ttl[= ](%d+)")) or 0
+            local traffic = traffic_clients[client.mac] or traffic_clients[client.mac:lower()] or {}
+            client.download = tonumber(aggregate_speed.speed_tx) or tonumber(traffic.tx) or 0
+            client.upload = tonumber(aggregate_speed.speed_rx) or tonumber(traffic.rx) or 0
+            client.total_download = tonumber(traffic.total_tx) or 0
+            client.total_upload = tonumber(traffic.total_rx) or 0
+            wired[#wired + 1] = client
+        end
+    end
+    result = wired
+
+    table.sort(result, function(a, b)
+        if a.online ~= b.online then return a.online end
+        return tostring(a.ip) < tostring(b.ip)
+    end)
+    return result
+end
+
+function M.list()
+    local interface = uci_get("gl-wol-lan.main.interface", "br-lan")
+    if not interface:match("^[%w_.:-]+$") then interface = "br-lan" end
+    return {
+        ok = true,
+        interface = interface,
+        broadcast = uci_get("gl-wol-lan.main.broadcast", "1"),
+        targets = load_targets(),
+        clients = load_clients(interface)
+    }
+end
+
+function M.save(params)
+    params = params or {}
+    local name = clean_name(params.name)
+    local mac = tostring(params.mac or ""):upper()
+    if name == "" then return { ok = false, error = "name_required" } end
+    if not valid_mac(mac) then return { ok = false, error = "invalid_mac" } end
+
+    local section = tostring(params.id or "")
+    if not section:match("^wol_%d+$") then
+        section = "wol_" .. tostring(os.time())
+        local suffix = 0
+        while uci_get("gl-wol-lan." .. section, "") ~= "" do
+            suffix = suffix + 1
+            section = "wol_" .. tostring(os.time()) .. tostring(suffix)
+        end
+        run({ "uci", "set", "gl-wol-lan." .. section .. "=target" })
+    end
+    run({ "uci", "set", "gl-wol-lan." .. section .. ".name=" .. name })
+    run({ "uci", "set", "gl-wol-lan." .. section .. ".mac=" .. mac })
+    local rc, output = run({ "uci", "commit", "gl-wol-lan" })
+    return { ok = rc == 0, id = section, rc = rc, output = output }
+end
+
+function M.remove(params)
+    local section = tostring((params or {}).id or "")
+    if not section:match("^wol_%d+$") then return { ok = false, error = "invalid_id" } end
+    run({ "uci", "-q", "delete", "gl-wol-lan." .. section })
+    local rc, output = run({ "uci", "commit", "gl-wol-lan" })
+    return { ok = rc == 0, rc = rc, output = output }
+end
+
+function M.wake(params)
+    local mac = tostring((params or {}).mac or ""):upper()
+    if not valid_mac(mac) then return { ok = false, error = "invalid_mac" } end
+    local interface = uci_get("gl-wol-lan.main.interface", "br-lan")
+    if not interface:match("^[%w_.:-]+$") then interface = "br-lan" end
+    local argv = { "/usr/bin/etherwake", "-i", interface }
+    if uci_get("gl-wol-lan.main.broadcast", "1") == "1" then argv[#argv + 1] = "-b" end
+    argv[#argv + 1] = mac
+    local rc, output = run(argv)
+    return { ok = rc == 0, rc = rc, output = output, mac = mac }
+end
+
+return M
