@@ -34,6 +34,77 @@ local function uci_get(path, fallback)
     return cleaned
 end
 
+local function u16(value)
+    value = tonumber(value) or 0
+    return string.char(math.floor(value / 256) % 256, value % 256)
+end
+
+local function read_u16(data, offset)
+    local high, low = data:byte(offset, offset + 1)
+    if not high or not low then return nil end
+    return high * 256 + low
+end
+
+local function skip_dns_name(data, offset)
+    while offset <= #data do
+        local length = data:byte(offset)
+        if not length then return nil end
+        if length == 0 then return offset + 1 end
+        if length >= 192 then return offset + 2 end
+        offset = offset + length + 1
+    end
+end
+
+-- Ask a Windows host for its workstation name without relying on DHCP or ping.
+local function netbios_name(ip)
+    if not tostring(ip or ""):match("^%d+%.%d+%.%d+%.%d+$") then return "" end
+    local ok, socket = pcall(require, "socket")
+    if not ok or not socket or type(socket.udp) ~= "function" then return "" end
+
+    local wildcard = "*" .. string.rep(string.char(0), 15)
+    local encoded = {}
+    for index = 1, #wildcard do
+        local byte = wildcard:byte(index)
+        encoded[#encoded + 1] = string.char(65 + math.floor(byte / 16), 65 + byte % 16)
+    end
+    local query = u16(0x574F) .. u16(0) .. u16(1) .. u16(0) .. u16(0) .. u16(0)
+        .. string.char(32) .. table.concat(encoded) .. string.char(0) .. u16(0x21) .. u16(1)
+    local udp = socket.udp()
+    if not udp then return "" end
+    udp:settimeout(0.45)
+    local sent = udp:sendto(query, ip, 137)
+    if not sent then udp:close(); return "" end
+    local response = udp:receivefrom()
+    udp:close()
+    if type(response) ~= "string" or #response < 20 then return "" end
+
+    local offset = skip_dns_name(response, 13)
+    if not offset then return "" end
+    offset = offset + 4
+    local answers = read_u16(response, 7) or 0
+    for _ = 1, answers do
+        offset = skip_dns_name(response, offset)
+        if not offset or offset + 9 > #response then return "" end
+        local answer_type = read_u16(response, offset)
+        local data_length = read_u16(response, offset + 8) or 0
+        local data_offset = offset + 10
+        if answer_type == 0x21 and data_length >= 19 then
+            local count = response:byte(data_offset) or 0
+            for index = 0, count - 1 do
+                local entry = data_offset + 1 + index * 18
+                if entry + 17 > #response then break end
+                local suffix = response:byte(entry + 15)
+                local flags = read_u16(response, entry + 16) or 0
+                if suffix == 0 and flags < 0x8000 then
+                    return clean_name(response:sub(entry, entry + 14):gsub("%s+$", ""))
+                end
+            end
+        end
+        offset = data_offset + data_length
+    end
+    return ""
+end
+
 local function load_targets()
     local _, raw = run({ "sh", "-c", "uci -q show gl-wol-lan | sed -n \"s/^gl-wol-lan\\.\\([^.=]*\\)=target$/\\1/p\"" })
     local result = {}
@@ -134,12 +205,16 @@ local function load_clients(interface)
             client.port = port
             local _, ping = run({ "ping", "-c", "1", "-W", "1", client.ip })
             client.ttl = tonumber(tostring(ping or ""):match("ttl[= ](%d+)")) or 0
+            if client.name == "" and client.ttl == 0 then
+                client.name = netbios_name(client.ip)
+                if client.name ~= "" then client.ttl = 128 end
+            end
             local traffic = traffic_clients[client.mac] or traffic_clients[client.mac:lower()] or {}
             client.download = tonumber(aggregate_speed.speed_tx) or tonumber(traffic.tx) or 0
             client.upload = tonumber(aggregate_speed.speed_rx) or tonumber(traffic.rx) or 0
             client.total_download = tonumber(traffic.total_tx) or 0
             client.total_upload = tonumber(traffic.total_rx) or 0
-            wired[#wired + 1] = client
+            if client.ttl ~= 64 or client.name ~= "" then wired[#wired + 1] = client end
         end
     end
     result = wired
