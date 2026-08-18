@@ -67,6 +67,16 @@ install_file /usr/lib/oui-httpd/rpc/wol_pc 0644
 install_file /usr/share/rpcd/acl.d/wol-pc.json 0644
 [ -e /etc/config/gl-wol-lan ] || install_file /etc/config/gl-wol-lan 0644
 
+# Clean up personal defaults accidentally shipped by one short-lived release.
+# This migration contains no device names or addresses and runs only once.
+if command -v uci >/dev/null 2>&1 && \
+   [ "$(uci -q get gl-wol-lan.main.public_defaults_cleanup || true)" != "1" ]; then
+    uci -q delete gl-wol-lan.komputer || true
+    uci -q delete gl-wol-lan.main.ignore_mac || true
+    uci set gl-wol-lan.main.public_defaults_cleanup='1'
+    uci commit gl-wol-lan
+fi
+
 command -v lua >/dev/null 2>&1 || fail "Lua runtime was not found"
 lua -e 'local m=dofile("/usr/lib/oui-httpd/rpc/wol_pc"); local r=m.list(); assert(type(r)=="table" and r.ok==true)' \
     || fail "RPC self-test failed; backup: $BACKUP_DIR"
