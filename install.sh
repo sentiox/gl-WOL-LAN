@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-RELEASE_REF="${GL_WOL_RELEASE_REF:-e55c914d077b6e83ee64c0f5ac7f2a343eddd4c5}"
+RELEASE_REF="${GL_WOL_RELEASE_REF:-0e92a4ba284bf1cd9aa0e335514b5b00de332d61}"
 BASE_URL="${GL_WOL_BASE_URL:-https://raw.githubusercontent.com/sentiox/gl-WOL-LAN/$RELEASE_REF}"
 TMP_DIR="$(mktemp -d /tmp/gl-wol-lan.XXXXXX)"
 BACKUP_DIR="/root/gl-wol-lan-backup-$(date +%Y%m%d-%H%M%S)"
