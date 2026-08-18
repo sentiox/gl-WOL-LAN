@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-PACKAGE_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-FILES_DIR="$PACKAGE_DIR/files"
+PACKAGE_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
+FILES_DIR="${GL_WOL_FILES_DIR:-$PACKAGE_DIR/files}"
 BACKUP_DIR="/root/gl-wol-lan-backup-$(date +%Y%m%d-%H%M%S)"
 
 fail() { echo "[gl-WOL-LAN] ERROR: $*" >&2; exit 1; }

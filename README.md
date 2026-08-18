@@ -42,18 +42,17 @@ created under `/root/gl-wol-lan-backup-*`.
 ## Fixed offline package
 
 For a reproducible installation that never downloads packages or current files,
-download `gl-wol-lan-offline-v1.zip` once and copy it to the router. Then run:
+download the single `gl-wol-lan-v1.sh` file once and copy it to the router. Then
+run:
 
 ```sh
 cd /tmp
-unzip gl-wol-lan-offline-v1.zip
-cd gl-wol-lan-offline-v1
-sh install-offline.sh
+sh gl-wol-lan-v1.sh
 ```
 
-The archive is a frozen snapshot. It does not use GitHub, `apk`, or `opkg` while
-installing. Its SHA-256 checksum is stored in
-`gl-wol-lan-offline-v1.zip.sha256`.
+The script is a frozen self-extracting snapshot containing every project file.
+It does not use GitHub, `apk`, `opkg`, ZIP, or any other package while
+installing. Its SHA-256 checksum is stored in `gl-wol-lan-v1.sh.sha256`.
 
 ## Uninstall
 
