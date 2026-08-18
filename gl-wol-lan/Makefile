@@ -29,6 +29,8 @@ define Package/gl-wol-lan/install
 	$(INSTALL_DATA) ./files/www/views/gl-sdk4-ui-wol-pc.common.js $(1)/www/views/gl-sdk4-ui-wol-pc.common.js
 	$(INSTALL_DIR) $(1)/usr/lib/oui-httpd/rpc
 	$(INSTALL_DATA) ./files/usr/lib/oui-httpd/rpc/wol_pc $(1)/usr/lib/oui-httpd/rpc/wol_pc
+	$(INSTALL_DIR) $(1)/usr/libexec/gl-wol-lan
+	$(INSTALL_BIN) ./files/usr/libexec/gl-wol-lan/wol-send $(1)/usr/libexec/gl-wol-lan/wol-send
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
 	$(INSTALL_CONF) ./files/usr/share/rpcd/acl.d/wol-pc.json $(1)/usr/share/rpcd/acl.d/wol-pc.json
 	$(INSTALL_DIR) $(1)/etc/config

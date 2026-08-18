@@ -32,11 +32,12 @@ install_file() {
 install_file /usr/share/oui/menu.d/wol-pc.json 0644
 install_file /www/views/gl-sdk4-ui-wol-pc.common.js 0644
 install_file /usr/lib/oui-httpd/rpc/wol_pc 0644
+install_file /usr/libexec/gl-wol-lan/wol-send 0755
 install_file /usr/share/rpcd/acl.d/wol-pc.json 0644
 [ -e /etc/config/gl-wol-lan ] || install_file /etc/config/gl-wol-lan 0644
 
 command -v lua >/dev/null 2>&1 || fail "GL.iNet Lua runtime was not found"
-lua -e 'local n=require("nixio"); assert(type(n.socket)=="function"); local m=dofile("/usr/lib/oui-httpd/rpc/wol_pc"); local r=m.list(); assert(type(r)=="table" and r.ok==true)' \
+lua -e 'local m=dofile("/usr/lib/oui-httpd/rpc/wol_pc"); local r=m.list(); assert(type(r)=="table" and r.ok==true)' \
     || fail "RPC self-test failed; backup: $BACKUP_DIR"
 
 /etc/init.d/nginx restart
