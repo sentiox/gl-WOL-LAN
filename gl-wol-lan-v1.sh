@@ -10,7 +10,7 @@ decode_file() {
     mode="$2"
     destination="$TMP_DIR/$relative"
     mkdir -p "$(dirname "$destination")"
-    base64 -d > "$destination"
+    openssl base64 -d > "$destination"
     chmod "$mode" "$destination"
 }
 
