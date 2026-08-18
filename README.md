@@ -52,7 +52,11 @@ Configuration is preserved by default. Use `uninstall.sh --purge` to remove it.
 - `install.sh` — standalone installer and updater;
 - `uninstall.sh` — standalone remover;
 - `scripts/` — development deployment and test helpers;
-- `vendor/luci-upstream/applications/luci-app-wol/` — ignored upstream reference.
+
+The installer does not download or install `luci-app-wol`. The web interface,
+RPC backend, styles and configuration are the files maintained in this
+repository. Only the router's small system `etherwake` utility is installed
+when it is not already present.
 
 ## Security
 

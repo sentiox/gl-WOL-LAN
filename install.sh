@@ -31,11 +31,9 @@ install_dependencies() {
     missing=""
     command -v etherwake >/dev/null 2>&1 || missing="$missing etherwake"
     if command -v apk >/dev/null 2>&1; then
-        apk info -e luci-app-wol >/dev/null 2>&1 || missing="$missing luci-app-wol"
-        [ -z "$missing" ] || { log "Installing:$missing"; apk add $missing; }
+        [ -z "$missing" ] || { log "Installing system utility:$missing"; apk add $missing; }
     elif command -v opkg >/dev/null 2>&1; then
-        opkg list-installed | grep -q '^luci-app-wol ' || missing="$missing luci-app-wol"
-        [ -z "$missing" ] || { log "Installing:$missing"; opkg update; opkg install $missing; }
+        [ -z "$missing" ] || { log "Installing system utility:$missing"; opkg update; opkg install $missing; }
     else
         fail "apk or opkg was not found"
     fi
