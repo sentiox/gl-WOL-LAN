@@ -17,8 +17,8 @@ light and dark themes.
 
 ## Compatibility
 
-The installer supports OpenWrt with `apk` or `opkg`. The project was tested on a
-GL.iNet GL-MT6000 with GL.iNet UI 4.9.1-op25 and OpenWrt 25.12.5.
+The project was tested on a GL.iNet GL-MT6000 with GL.iNet UI 4.9.1-op25 and
+OpenWrt 25.12.5. The bundled WOL sender in this release targets the GL-MT6000.
 
 ## Install or update
 
@@ -39,20 +39,9 @@ for the current router. Running the installer again updates the UI
 without removing saved PC names or ignored devices. A timestamped backup is
 created under `/root/gl-wol-lan-backup-*`.
 
-## Fixed offline package
-
-For a reproducible installation that never downloads packages or current files,
-download the single `gl-wol-lan-v1.sh` file once and copy it to the router. Then
-run:
-
-```sh
-cd /tmp
-sh gl-wol-lan-v1.sh
-```
-
-The script is a frozen self-extracting snapshot containing every project file.
-It does not use GitHub, `apk`, `opkg`, ZIP, or any other package while
-installing. Its SHA-256 checksum is stored in `gl-wol-lan-v1.sh.sha256`.
+The command downloads only this repository's installer. The installer uses a
+pinned, tested project revision and does not run `apk`, `opkg`, or install
+`luci-app-wol`. It installs the bundled WOL sender maintained with this release.
 
 ## Uninstall
 
