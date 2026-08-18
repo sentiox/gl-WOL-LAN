@@ -12,7 +12,6 @@ define Package/gl-wol-lan
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Wol-PC for the native GL.iNet UI
-  DEPENDS:=+etherwake +rpcd
 endef
 
 define Package/gl-wol-lan/description

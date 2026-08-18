@@ -27,18 +27,6 @@ fetch() {
     [ -s "$destination" ] || fail "downloaded file is empty: $relative"
 }
 
-install_dependencies() {
-    missing=""
-    command -v etherwake >/dev/null 2>&1 || missing="$missing etherwake"
-    if command -v apk >/dev/null 2>&1; then
-        [ -z "$missing" ] || { log "Installing system utility:$missing"; apk add $missing; }
-    elif command -v opkg >/dev/null 2>&1; then
-        [ -z "$missing" ] || { log "Installing system utility:$missing"; opkg update; opkg install $missing; }
-    else
-        fail "apk or opkg was not found"
-    fi
-}
-
 stage_file() { fetch "gl-wol-lan/files$1" "$TMP_DIR$1"; }
 backup_file() {
     [ ! -e "$1" ] || { mkdir -p "$BACKUP_DIR$(dirname "$1")"; cp -p "$1" "$BACKUP_DIR$1"; }
@@ -47,7 +35,6 @@ install_file() {
     mkdir -p "$(dirname "$1")"; cp "$TMP_DIR$1" "$1"; chmod "$2" "$1"
 }
 
-install_dependencies
 for path in \
     /usr/share/oui/menu.d/wol-pc.json \
     /www/views/gl-sdk4-ui-wol-pc.common.js \
@@ -75,8 +62,8 @@ if command -v uci >/dev/null 2>&1 && \
     uci commit gl-wol-lan
 fi
 
-command -v lua >/dev/null 2>&1 || fail "Lua runtime was not found"
-lua -e 'local m=dofile("/usr/lib/oui-httpd/rpc/wol_pc"); local r=m.list(); assert(type(r)=="table" and r.ok==true)' \
+command -v lua >/dev/null 2>&1 || fail "GL.iNet Lua runtime was not found"
+lua -e 'local n=require("nixio"); assert(type(n.socket)=="function"); local m=dofile("/usr/lib/oui-httpd/rpc/wol_pc"); local r=m.list(); assert(type(r)=="table" and r.ok==true)' \
     || fail "RPC self-test failed; backup: $BACKUP_DIR"
 
 /etc/init.d/nginx restart

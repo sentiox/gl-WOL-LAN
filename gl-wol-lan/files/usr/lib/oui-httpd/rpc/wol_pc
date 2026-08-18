@@ -197,13 +197,21 @@ end
 function M.wake(params)
     local mac = tostring((params or {}).mac or ""):upper()
     if not valid_mac(mac) then return { ok = false, error = "invalid_mac" } end
-    local interface = uci_get("gl-wol-lan.main.interface", "br-lan")
-    if not interface:match("^[%w_.:-]+$") then interface = "br-lan" end
-    local argv = { "/usr/bin/etherwake", "-i", interface }
-    if uci_get("gl-wol-lan.main.broadcast", "1") == "1" then argv[#argv + 1] = "-b" end
-    argv[#argv + 1] = mac
-    local rc, output = run(argv)
-    return { ok = rc == 0, rc = rc, output = output, mac = mac }
+    local ok, nixio = pcall(require, "nixio")
+    if not ok or not nixio then return { ok = false, error = "socket_unavailable" } end
+
+    local mac_bytes = ""
+    for pair in mac:gmatch("%x%x") do
+        mac_bytes = mac_bytes .. string.char(tonumber(pair, 16))
+    end
+    local packet = string.rep(string.char(255), 6) .. string.rep(mac_bytes, 16)
+    local socket, socket_error = nixio.socket("inet", "dgram")
+    if not socket then return { ok = false, error = tostring(socket_error or "socket_failed") } end
+    socket:setopt("socket", "broadcast", 1)
+    local sent, send_error = socket:sendto(packet, "255.255.255.255", 9)
+    socket:close()
+    if not sent then return { ok = false, error = tostring(send_error or "send_failed") } end
+    return { ok = true, rc = 0, mac = mac }
 end
 
 return M

@@ -8,7 +8,7 @@ light and dark themes.
 
 - discovers wired LAN devices and excludes Wi-Fi clients;
 - remembers a custom PC name by MAC address;
-- sends a Wake-on-LAN Magic Packet through `etherwake`;
+- sends a Wake-on-LAN Magic Packet directly from its own RPC backend;
 - shows TTL and live download/upload speed;
 - responsive desktop and mobile layouts;
 - Russian and English UI;
@@ -54,10 +54,10 @@ Configuration is preserved by default. Use `uninstall.sh --purge` to remove it.
 - `uninstall.sh` — standalone remover;
 - `scripts/` — development deployment and test helpers;
 
-The installer does not download or install `luci-app-wol`. The web interface,
-RPC backend, styles and configuration are the files maintained in this
-repository. Only the router's small system `etherwake` utility is installed
-when it is not already present.
+The installer does not download or install `luci-app-wol`, `etherwake`, or any
+other package. The web interface, Magic Packet sender, styles and configuration
+are the files maintained in this repository. It uses the Lua/Nixio runtime that
+is already part of the supported GL.iNet firmware.
 
 ## Security
 
